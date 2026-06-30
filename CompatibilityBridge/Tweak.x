@@ -22,9 +22,10 @@
 /*
  * 重入检测机制：
  * 每个线程维护一个计数器。进入 guard → +1；离开 guard → -1。
- * counter > 1 表示重入（外层还在 guard 中，又触发了同一个/另一个 guard）。
+ * counter > 3 视为递归（UIKit 正常嵌套可达 2-3 层，>3 说明是无限循环）。
  * 重入时不做任何 Hook 逻辑，直接通过 %orig 走真正的原始实现。
  */
+#define REENTRY_THRESHOLD 3
 static _Thread_local int _reentryDepth = 0;
 
 // ============================================================================
@@ -35,7 +36,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)setFrame:(CGRect)frame {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -46,7 +47,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)layoutSubviews {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -57,7 +58,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)setBackgroundColor:(UIColor *)color {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -68,7 +69,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)addSubview:(UIView *)view {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -79,7 +80,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)didAddSubview:(UIView *)subview {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -90,7 +91,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)didMoveToSuperview {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -101,7 +102,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)didMoveToWindow {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -112,7 +113,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)setHidden:(BOOL)hidden {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -131,7 +132,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)viewWillAppear:(BOOL)animated {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -142,7 +143,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)viewDidAppear:(BOOL)animated {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -153,7 +154,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)viewDidLoad {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -164,7 +165,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)viewDidLayoutSubviews {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -175,7 +176,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)viewWillLayoutSubviews {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -194,7 +195,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)setContentOffset:(CGPoint)contentOffset {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -205,7 +206,7 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)setContentInset:(UIEdgeInsets)contentInset {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -217,36 +218,14 @@ static _Thread_local int _reentryDepth = 0;
 %end // UIScrollView
 
 // ============================================================================
-// UINavigationBar
+// UINavigationBar — 仅 hook 子类特有方法（setFrame:/layoutSubviews 由 UIView 继承覆盖）
 // ============================================================================
 
 %hook UINavigationBar
 
-- (void)setFrame:(CGRect)frame {
-    _reentryDepth++;
-    if (_reentryDepth > 1) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
-    %orig;
-    _reentryDepth--;
-}
-
-- (void)layoutSubviews {
-    _reentryDepth++;
-    if (_reentryDepth > 1) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
-    %orig;
-    _reentryDepth--;
-}
-
 - (void)setBackgroundImage:(UIImage *)backgroundImage forBarMetrics:(UIBarMetrics)barMetrics {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
@@ -258,36 +237,14 @@ static _Thread_local int _reentryDepth = 0;
 %end // UINavigationBar
 
 // ============================================================================
-// UITabBar — TabBar 是最严重的冲突区
+// UITabBar — 仅 hook 子类特有方法（setFrame:/layoutSubviews 由 UIView 继承覆盖）
 // ============================================================================
 
 %hook UITabBar
 
-- (void)setFrame:(CGRect)frame {
-    _reentryDepth++;
-    if (_reentryDepth > 1) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
-    %orig;
-    _reentryDepth--;
-}
-
-- (void)layoutSubviews {
-    _reentryDepth++;
-    if (_reentryDepth > 1) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
-    %orig;
-    _reentryDepth--;
-}
-
 - (void)setBackgroundImage:(UIImage *)backgroundImage {
     _reentryDepth++;
-    if (_reentryDepth > 1) {
+    if (_reentryDepth > REENTRY_THRESHOLD) {
         %orig;
         _reentryDepth--;
         return;
