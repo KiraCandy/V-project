@@ -16,8 +16,9 @@ jobs:
         run: |
           export THEOS=/opt/theos
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
+          echo "$THEOS/bin" >> $GITHUB_PATH
           if [ ! -d "$THEOS" ]; then
-            sudo git clone --depth 1 https://github.com/theos/theos.git $THEOS
+            sudo git clone --depth 1 --recursive https://github.com/theos/theos.git $THEOS
             sudo chown -R $(whoami) $THEOS
           fi
 
