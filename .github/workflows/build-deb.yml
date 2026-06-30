@@ -1,0 +1,34 @@
+name: Build DEB
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-deb:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install theos
+        run: |
+          export THEOS=/opt/theos
+          echo "THEOS=/opt/theos" >> $GITHUB_ENV
+          if [ ! -d "$THEOS" ]; then
+            sudo git clone --depth 1 https://github.com/theos/theos.git $THEOS
+            sudo chown -R $(whoami) $THEOS
+          fi
+
+      - name: Build DEB
+        run: |
+          cd CompatibilityBridge
+          make package
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AACompat-deb
+          path: CompatibilityBridge/packages/*.deb
+          retention-days: 90
