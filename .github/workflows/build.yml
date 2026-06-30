@@ -1,0 +1,23 @@
+name: Build CompatBridge.dylib
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build CompatBridge.dylib
+        run: make
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CompatBridge.dylib
+          path: CompatBridge.dylib
+          retention-days: 90

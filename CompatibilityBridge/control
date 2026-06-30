@@ -1,0 +1,11 @@
+Package: com.aa.compat
+Name: AACompat — WeChat 液态玻璃 & ThemePro 兼容桥接
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: 解决液态玻璃 (WeChatLiquidGlass) 与 ThemePro 同时加载时的闪退问题。
+ 在 UIView/UIViewController 基类添加重入保护，阻断两个插件之间的
+ 无限递归（setFrame:/layoutSubviews/addSubview:/viewWillAppear: 等）。
+Maintainer: AACompat
+Author: AACompat
+Section: Tweaks
+Depends: firmware (>= 14.0)

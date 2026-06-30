@@ -1,0 +1,9 @@
+{
+    Filter = {
+        Executables = (WeChat);
+        Bundles = (
+            "com.tencent.xin",
+            "com.tencent.xin.sharetimeline"
+        );
+    };
+}
