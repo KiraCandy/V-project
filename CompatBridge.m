@@ -38,26 +38,26 @@ static _Thread_local int _depth = 0;
 // Non-nil means "currently inside this guard for the specified instance".
 // Re-entry on the SAME instance is true recursion.
 
-static _Thread_local id _setFrame_target = nil;
-static _Thread_local id _layoutSubviews_target = nil;
-static _Thread_local id _setBackgroundColor_target = nil;
-static _Thread_local id _addSubview_target = nil;
-static _Thread_local id _didAddSubview_target = nil;
-static _Thread_local id _didMoveToSuperview_target = nil;
-static _Thread_local id _didMoveToWindow_target = nil;
-static _Thread_local id _setHidden_target = nil;
+static _Thread_local __unsafe_unretained id _setFrame_target = nil;
+static _Thread_local __unsafe_unretained id _layoutSubviews_target = nil;
+static _Thread_local __unsafe_unretained id _setBackgroundColor_target = nil;
+static _Thread_local __unsafe_unretained id _addSubview_target = nil;
+static _Thread_local __unsafe_unretained id _didAddSubview_target = nil;
+static _Thread_local __unsafe_unretained id _didMoveToSuperview_target = nil;
+static _Thread_local __unsafe_unretained id _didMoveToWindow_target = nil;
+static _Thread_local __unsafe_unretained id _setHidden_target = nil;
 
-static _Thread_local id _viewWillAppear_target = nil;
-static _Thread_local id _viewDidAppear_target = nil;
-static _Thread_local id _viewDidLoad_target = nil;
-static _Thread_local id _viewDidLayoutSubviews_target = nil;
-static _Thread_local id _viewWillLayoutSubviews_target = nil;
+static _Thread_local __unsafe_unretained id _viewWillAppear_target = nil;
+static _Thread_local __unsafe_unretained id _viewDidAppear_target = nil;
+static _Thread_local __unsafe_unretained id _viewDidLoad_target = nil;
+static _Thread_local __unsafe_unretained id _viewDidLayoutSubviews_target = nil;
+static _Thread_local __unsafe_unretained id _viewWillLayoutSubviews_target = nil;
 
-static _Thread_local id _setContentOffset_target = nil;
-static _Thread_local id _setContentInset_target = nil;
+static _Thread_local __unsafe_unretained id _setContentOffset_target = nil;
+static _Thread_local __unsafe_unretained id _setContentInset_target = nil;
 
-static _Thread_local id _navbar_setBgImage_target = nil;
-static _Thread_local id _tabbar_setBgImage_target = nil;
+static _Thread_local __unsafe_unretained id _navbar_setBgImage_target = nil;
+static _Thread_local __unsafe_unretained id _tabbar_setBgImage_target = nil;
 
 // ── Original IMP storage ───────────────────────────────────────
 
