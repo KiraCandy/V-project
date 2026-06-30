@@ -5,8 +5,10 @@
  * （setFrame:, layoutSubviews, addSubview:, viewWillAppear: 等），
  * 各自在 hook 内部修改视图导致相互触发无限递归 → 栈溢出崩溃。
  *
- * 解决：在 UIView/UIViewController 基类层面用 thread-local 计数器
- * 检测重入，重入时直接走原始实现，阻断递归循环。
+ * 解决：per-method TLS 标志位精确检测递归。每个 guard 函数有独立的
+ * _in_xxx 标志。如果同一个 guard 被重入（标志位已置位），说明发生了
+ * 真递归 → 直接 %orig 走原始实现，打断循环。
+ * 深度计数器（阈值 10）作为兜底保护。
  *
  * 编译：theos 或装有 theos 的环境，放到 /var/jb/usr/lib/TweakInject/
  * 文件名必须保证按字母顺序在 libPineappleDylib 和 WeChatLiquidGlass 之前加载。
@@ -20,13 +22,30 @@
 #import <objc/message.h>
 
 /*
- * 重入检测机制：
- * 每个线程维护一个计数器。进入 guard → +1；离开 guard → -1。
- * counter > 3 视为递归（UIKit 正常嵌套可达 2-3 层，>3 说明是无限循环）。
- * 重入时不做任何 Hook 逻辑，直接通过 %orig 走真正的原始实现。
+ * 递归检测策略：
+ * 1. Per-method 标志位：同一方法被重入 = 真递归 → %orig 打断
+ * 2. 全局深度计数器（阈值 10）：兜底检测跨方法循环
  */
-#define REENTRY_THRESHOLD 3
+#define DEPTH_LIMIT 10
 static _Thread_local int _reentryDepth = 0;
+
+static _Thread_local BOOL _in_setFrame = NO;
+static _Thread_local BOOL _in_layoutSubviews = NO;
+static _Thread_local BOOL _in_setBackgroundColor = NO;
+static _Thread_local BOOL _in_addSubview = NO;
+static _Thread_local BOOL _in_didAddSubview = NO;
+static _Thread_local BOOL _in_didMoveToSuperview = NO;
+static _Thread_local BOOL _in_didMoveToWindow = NO;
+static _Thread_local BOOL _in_setHidden = NO;
+
+static _Thread_local BOOL _in_viewWillAppear = NO;
+static _Thread_local BOOL _in_viewDidAppear = NO;
+static _Thread_local BOOL _in_viewDidLoad = NO;
+static _Thread_local BOOL _in_viewDidLayoutSubviews = NO;
+static _Thread_local BOOL _in_viewWillLayoutSubviews = NO;
+
+static _Thread_local BOOL _in_setContentOffset = NO;
+static _Thread_local BOOL _in_setContentInset = NO;
 
 // ============================================================================
 // UIView 层级 — 最关键的冲突点
@@ -36,89 +55,73 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)setFrame:(CGRect)frame {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_setFrame || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_setFrame = YES;
     %orig;
+    _in_setFrame = NO;
     _reentryDepth--;
 }
 
 - (void)layoutSubviews {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_layoutSubviews || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_layoutSubviews = YES;
     %orig;
+    _in_layoutSubviews = NO;
     _reentryDepth--;
 }
 
 - (void)setBackgroundColor:(UIColor *)color {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_setBackgroundColor || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_setBackgroundColor = YES;
     %orig;
+    _in_setBackgroundColor = NO;
     _reentryDepth--;
 }
 
 - (void)addSubview:(UIView *)view {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_addSubview || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_addSubview = YES;
     %orig;
+    _in_addSubview = NO;
     _reentryDepth--;
 }
 
 - (void)didAddSubview:(UIView *)subview {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_didAddSubview || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_didAddSubview = YES;
     %orig;
+    _in_didAddSubview = NO;
     _reentryDepth--;
 }
 
 - (void)didMoveToSuperview {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_didMoveToSuperview || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_didMoveToSuperview = YES;
     %orig;
+    _in_didMoveToSuperview = NO;
     _reentryDepth--;
 }
 
 - (void)didMoveToWindow {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_didMoveToWindow || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_didMoveToWindow = YES;
     %orig;
+    _in_didMoveToWindow = NO;
     _reentryDepth--;
 }
 
 - (void)setHidden:(BOOL)hidden {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_setHidden || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_setHidden = YES;
     %orig;
+    _in_setHidden = NO;
     _reentryDepth--;
 }
 
@@ -132,56 +135,46 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)viewWillAppear:(BOOL)animated {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_viewWillAppear || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_viewWillAppear = YES;
     %orig;
+    _in_viewWillAppear = NO;
     _reentryDepth--;
 }
 
 - (void)viewDidAppear:(BOOL)animated {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_viewDidAppear || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_viewDidAppear = YES;
     %orig;
+    _in_viewDidAppear = NO;
     _reentryDepth--;
 }
 
 - (void)viewDidLoad {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_viewDidLoad || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_viewDidLoad = YES;
     %orig;
+    _in_viewDidLoad = NO;
     _reentryDepth--;
 }
 
 - (void)viewDidLayoutSubviews {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_viewDidLayoutSubviews || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_viewDidLayoutSubviews = YES;
     %orig;
+    _in_viewDidLayoutSubviews = NO;
     _reentryDepth--;
 }
 
 - (void)viewWillLayoutSubviews {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_viewWillLayoutSubviews || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_viewWillLayoutSubviews = YES;
     %orig;
+    _in_viewWillLayoutSubviews = NO;
     _reentryDepth--;
 }
 
@@ -195,65 +188,23 @@ static _Thread_local int _reentryDepth = 0;
 
 - (void)setContentOffset:(CGPoint)contentOffset {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_setContentOffset || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_setContentOffset = YES;
     %orig;
+    _in_setContentOffset = NO;
     _reentryDepth--;
 }
 
 - (void)setContentInset:(UIEdgeInsets)contentInset {
     _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
+    if (_in_setContentInset || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    _in_setContentInset = YES;
     %orig;
+    _in_setContentInset = NO;
     _reentryDepth--;
 }
 
 %end // UIScrollView
-
-// ============================================================================
-// UINavigationBar — 仅 hook 子类特有方法（setFrame:/layoutSubviews 由 UIView 继承覆盖）
-// ============================================================================
-
-%hook UINavigationBar
-
-- (void)setBackgroundImage:(UIImage *)backgroundImage forBarMetrics:(UIBarMetrics)barMetrics {
-    _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
-    %orig;
-    _reentryDepth--;
-}
-
-%end // UINavigationBar
-
-// ============================================================================
-// UITabBar — 仅 hook 子类特有方法（setFrame:/layoutSubviews 由 UIView 继承覆盖）
-// ============================================================================
-
-%hook UITabBar
-
-- (void)setBackgroundImage:(UIImage *)backgroundImage {
-    _reentryDepth++;
-    if (_reentryDepth > REENTRY_THRESHOLD) {
-        %orig;
-        _reentryDepth--;
-        return;
-    }
-    %orig;
-    _reentryDepth--;
-}
-
-%end // UITabBar
 
 // ============================================================================
 // %ctor — 确保在插件加载后立即激活
@@ -265,6 +216,6 @@ static _Thread_local int _reentryDepth = 0;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         NSLog(@"[AACompat] Compatibility bridge initialized — "
-              "reentry guard active for UIView/UIViewController/UITabBar/UINavigationBar");
+              "per-method reentry guard active for UIView/UIViewController");
     });
 }
