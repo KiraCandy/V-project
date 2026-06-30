@@ -1,202 +1,116 @@
 /**
- * WeGlass v6 — Native frosted glass effect for WeChat
+ * WeGlass v7 — Minimal crash-safe frosted glass
  *
- * Detection: isKindOfClass: + class name + position (3 tiers)
- * Hook:      willMoveToSuperview: only (NOT hooked by ThemePro)
- * Safety:    sync only — no dispatch_async, no __unsafe_unretained
- *            Size check before applying — skip if bounds are zero
+ * Strategy: Use iOS native bar translucency (built-in UIVisualEffectView blur).
+ * DO NOT insert any subviews — only set existing bar properties.
+ * This avoids all view-hierarchy manipulation during setup.
  *
- * Compat: ThemePro — zero hook overlap, zero conflict
+ * Hook:      willMoveToSuperview: (not hooked by ThemePro)
+ * Detection: isKindOfClass: only — no string alloc, no screen access
+ *
+ * Compat: ThemePro — zero overlap
  * Device:  iPhone 7 (A10), iOS 14.0+
  */
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
-// ── Configuration ──────────────────────────────────────────────
+#define CELL_ALPHA 0.35
 
-#define BLUR_STYLE  UIBlurEffectStyleLight
-#define TINT_ALPHA  0.40
-#define BLUR_ALPHA  0.70
-#define CELL_ALPHA  0.35
+static const void *kDoneKey = &kDoneKey;
+static void (*_orig)(id, SEL, UIView *);
+static _Thread_local int _depth = 0;
 
-// ── Associated object keys ─────────────────────────────────────
+static BOOL _done(id v) { return objc_getAssociatedObject(v, kDoneKey) != nil; }
+static void _mark(id v) { objc_setAssociatedObject(v, kDoneKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 
-static const void *kGlassKey    = &kGlassKey;
-static const void *kBlurViewKey = &kBlurViewKey;
-static const void *kTintViewKey = &kTintViewKey;
+static void _glassify(id self) {
+    UIView *v = (UIView *)self;
+    if (_done(v)) return;
+    if (v.bounds.size.width <= 0 && v.bounds.size.height <= 0) return;
 
-// ── Original IMP ───────────────────────────────────────────────
+    _depth++;
+    if (_depth > 30) { _depth--; return; }
 
-static void (*_orig_willMoveToSuperview)(id, SEL, UIView *);
-
-// ── Detection ──────────────────────────────────────────────────
-
-typedef NS_ENUM(NSInteger, GlassTarget) {
-    GlassTargetNone = 0,
-    GlassTargetNavBar,
-    GlassTargetTabBar,
-    GlassTargetSearchBar,
-    GlassTargetTableList,
-    GlassTargetCell,
-};
-
-static BOOL _nameHas(UIView *view, NSString *s) {
-    NSString *name = NSStringFromClass([view class]);
-    return name && [name rangeOfString:s].location != NSNotFound;
-}
-
-static GlassTarget _classify(UIView *view) {
-    CGRect b = view.bounds;
-    if (b.size.width < 40 || b.size.height < 20) return GlassTargetNone;
-
-    // Tier 1: UIKit class hierarchy
-    if ([view isKindOfClass:[UINavigationBar class]]) return GlassTargetNavBar;
-    if ([view isKindOfClass:[UITabBar class]])       return GlassTargetTabBar;
-    if ([view isKindOfClass:[UISearchBar class]])    return GlassTargetSearchBar;
-    if ([view isKindOfClass:[UIToolbar class]])      return GlassTargetNavBar;
-    if ([view isKindOfClass:[UITableView class]])    return GlassTargetTableList;
-    if ([view isKindOfClass:[UICollectionView class]]) return GlassTargetTableList;
-    if ([view isKindOfClass:[UITableViewCell class]]) return GlassTargetCell;
-    if ([view isKindOfClass:[UICollectionViewCell class]]) return GlassTargetCell;
-
-    // Tier 2: Class name patterns
-    if (_nameHas(view, @"NavigationBar") || _nameHas(view, @"MMNav"))   return GlassTargetNavBar;
-    if (_nameHas(view, @"TabBar")        || _nameHas(view, @"MMTab"))   return GlassTargetTabBar;
-    if (_nameHas(view, @"SearchBar")     || _nameHas(view, @"MMSearch")) return GlassTargetSearchBar;
-    if (_nameHas(view, @"TableView")     || _nameHas(view, @"CollectionView")
-                                        || _nameHas(view, @"ListView")) return GlassTargetTableList;
-    if (_nameHas(view, @"Cell"))                                         return GlassTargetCell;
-
-    // Tier 3: Position heuristic
-    CGFloat sw = [UIScreen mainScreen].bounds.size.width;
-    if (b.size.width < sw * 0.85) return GlassTargetNone;
-
-    if (view.frame.origin.y <= 0 && b.size.height >= 40 && b.size.height <= 140)
-        return GlassTargetNavBar;
-
-    UIWindow *win = view.window;
-    if (win) {
-        CGRect abs = [view convertRect:b toView:win];
-        CGFloat bot = abs.origin.y + abs.size.height;
-        if (bot >= win.bounds.size.height - 5 && b.size.height >= 40 && b.size.height <= 100)
-            return GlassTargetTabBar;
+    // ── UINavigationBar / subclasses (e.g. MMUINavigationBar) ──
+    if ([v isKindOfClass:[UINavigationBar class]]) {
+        _mark(v);
+        UINavigationBar *nb = (UINavigationBar *)v;
+        nb.translucent = YES;
+        nb.backgroundColor = [UIColor clearColor];
+        [nb setBackgroundImage:[[UIImage alloc] init] forBarMetrics:UIBarMetricsDefault];
+        [nb setShadowImage:[[UIImage alloc] init]];
+        _depth--;
+        return;
     }
 
-    return GlassTargetNone;
-}
-
-// ── Glass application (sync, bounds must be non-zero) ──────────
-
-static BOOL _done(UIView *v) { return objc_getAssociatedObject(v, kGlassKey) != nil; }
-static void _mark(UIView *v) { objc_setAssociatedObject(v, kGlassKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-static UIColor *_tint(void) { return [UIColor colorWithWhite:0.97 alpha:TINT_ALPHA]; }
-
-static void _glassBar(UIView *bar) {
-    if (_done(bar)) return;
-    _mark(bar);
-
-    bar.backgroundColor = [UIColor clearColor];
-
-    if ([bar respondsToSelector:@selector(setTranslucent:)])
-        [(UINavigationBar *)bar setTranslucent:YES];
-    if ([bar respondsToSelector:@selector(setBackgroundImage:forBarMetrics:)])
-        [(UINavigationBar *)bar setBackgroundImage:[[UIImage alloc] init] forBarMetrics:UIBarMetricsDefault];
-    if ([bar respondsToSelector:@selector(setShadowImage:)])
-        [(UINavigationBar *)bar setShadowImage:[[UIImage alloc] init]];
-    if ([bar respondsToSelector:@selector(setBarTintColor:)])
-        [bar performSelector:@selector(setBarTintColor:) withObject:[UIColor clearColor]];
-
-    UIView *tint = [[UIView alloc] initWithFrame:bar.bounds];
-    tint.backgroundColor = _tint();
-    tint.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    tint.userInteractionEnabled = NO;
-    tint.tag = 0x5765476C;
-    [bar insertSubview:tint atIndex:0];
-    objc_setAssociatedObject(bar, kTintViewKey, tint, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-
-    UIVisualEffectView *blur = [[UIVisualEffectView alloc]
-        initWithEffect:[UIBlurEffect effectWithStyle:BLUR_STYLE]];
-    blur.frame = bar.bounds;
-    blur.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    blur.alpha = BLUR_ALPHA;
-    blur.tag = 0x5765476C;
-    [bar insertSubview:blur atIndex:0];
-    objc_setAssociatedObject(bar, kBlurViewKey, blur, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-}
-
-static void _glassList(UIView *list) {
-    if (_done(list)) return;
-    _mark(list);
-    list.backgroundColor = [UIColor clearColor];
-
-    UIView *tint = [[UIView alloc] initWithFrame:list.bounds];
-    tint.backgroundColor = _tint();
-    tint.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    tint.userInteractionEnabled = NO;
-    tint.tag = 0x5765476C;
-    [list insertSubview:tint atIndex:0];
-    objc_setAssociatedObject(list, kTintViewKey, tint, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-
-    UIVisualEffectView *blur = [[UIVisualEffectView alloc]
-        initWithEffect:[UIBlurEffect effectWithStyle:BLUR_STYLE]];
-    blur.frame = list.bounds;
-    blur.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    blur.alpha = BLUR_ALPHA;
-    blur.tag = 0x5765476C;
-    [list insertSubview:blur atIndex:0];
-    objc_setAssociatedObject(list, kBlurViewKey, blur, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-}
-
-static void _glassCell(UIView *cell) {
-    if (_done(cell)) return;
-    _mark(cell);
-
-    if (cell.backgroundColor && CGColorGetAlpha(cell.backgroundColor.CGColor) > 0.5)
-        cell.backgroundColor = [cell.backgroundColor colorWithAlphaComponent:CELL_ALPHA];
-
-    if ([cell respondsToSelector:@selector(contentView)]) {
-        UIView *cv = [(UITableViewCell *)cell contentView];
-        if (cv.backgroundColor && CGColorGetAlpha(cv.backgroundColor.CGColor) > 0.5)
-            cv.backgroundColor = [cv.backgroundColor colorWithAlphaComponent:CELL_ALPHA];
+    // ── UITabBar / subclasses ──────────────────────────────────
+    if ([v isKindOfClass:[UITabBar class]]) {
+        _mark(v);
+        UITabBar *tb = (UITabBar *)v;
+        tb.translucent = YES;
+        tb.backgroundColor = [UIColor clearColor];
+        [tb setBackgroundImage:[[UIImage alloc] init]];
+        [tb setShadowImage:[[UIImage alloc] init]];
+        _depth--;
+        return;
     }
-}
 
-static void _tryGlass(UIView *view) {
-    // Bounds must be set — skip otherwise (view will re-trigger when sized)
-    if (view.bounds.size.width <= 0 && view.bounds.size.height <= 0) return;
-
-    switch (_classify(view)) {
-        case GlassTargetNavBar:
-        case GlassTargetTabBar:
-        case GlassTargetSearchBar:
-            _glassBar(view);
-            break;
-        case GlassTargetTableList:
-            _glassList(view);
-            break;
-        case GlassTargetCell:
-            _glassCell(view);
-            break;
-        default: break;
+    // ── UISearchBar / subclasses ───────────────────────────────
+    if ([v isKindOfClass:[UISearchBar class]]) {
+        _mark(v);
+        UISearchBar *sb = (UISearchBar *)v;
+        sb.translucent = YES;
+        sb.backgroundColor = [UIColor clearColor];
+        [sb setBackgroundImage:[[UIImage alloc] init]];
+        _depth--;
+        return;
     }
+
+    // ── UIToolbar / subclasses ─────────────────────────────────
+    if ([v isKindOfClass:[UIToolbar class]]) {
+        _mark(v);
+        UIToolbar *tb = (UIToolbar *)v;
+        tb.translucent = YES;
+        tb.backgroundColor = [UIColor clearColor];
+        [tb setBackgroundImage:[[UIImage alloc] init] forToolbarPosition:UIBarPositionAny barMetrics:UIBarMetricsDefault];
+        _depth--;
+        return;
+    }
+
+    // ── UITableView / UICollectionView ─────────────────────────
+    if ([v isKindOfClass:[UITableView class]] || [v isKindOfClass:[UICollectionView class]]) {
+        _mark(v);
+        v.backgroundColor = [UIColor clearColor];
+        _depth--;
+        return;
+    }
+
+    // ── UITableViewCell / UICollectionViewCell ──────────────────
+    if ([v isKindOfClass:[UITableViewCell class]] || [v isKindOfClass:[UICollectionViewCell class]]) {
+        _mark(v);
+        if (v.backgroundColor && CGColorGetAlpha(v.backgroundColor.CGColor) > 0.5)
+            v.backgroundColor = [v.backgroundColor colorWithAlphaComponent:CELL_ALPHA];
+        if ([v respondsToSelector:@selector(contentView)]) {
+            UIView *cv = [(UITableViewCell *)v contentView];
+            if (cv.backgroundColor && CGColorGetAlpha(cv.backgroundColor.CGColor) > 0.5)
+                cv.backgroundColor = [cv.backgroundColor colorWithAlphaComponent:CELL_ALPHA];
+        }
+        _depth--;
+        return;
+    }
+
+    _depth--;
 }
 
-// ── Hook ───────────────────────────────────────────────────────
-
-static void _hook_willMoveToSuperview(id self, SEL _cmd, UIView *newSuperview) {
-    if (_orig_willMoveToSuperview) _orig_willMoveToSuperview(self, _cmd, newSuperview);
+static void _hook(id self, SEL _cmd, UIView *newSuperview) {
+    if (_orig) _orig(self, _cmd, newSuperview);
     if (!newSuperview) return;
-    _tryGlass((UIView *)self);
+    _glassify(self);
 }
-
-// ── Constructor ────────────────────────────────────────────────
 
 __attribute__((constructor))
-static void WeGlass_init(void) {
+static void init(void) {
     Method m = class_getInstanceMethod([UIView class], @selector(willMoveToSuperview:));
-    if (m) {
-        _orig_willMoveToSuperview = (void *)method_setImplementation(
-            m, (IMP)_hook_willMoveToSuperview);
-    }
-    NSLog(@"[WeGlass] v6 — sync only, 3-tier detection, zero async");
+    if (m) _orig = (void *)method_setImplementation(m, (IMP)_hook);
+    NSLog(@"[WeGlass] v7 — native translucency, no subview insertion");
 }
