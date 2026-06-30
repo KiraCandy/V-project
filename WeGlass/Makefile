@@ -8,7 +8,7 @@
 SDK ?= $(shell xcrun --sdk iphoneos --show-sdk-path)
 TARGET = WeGlass.dylib
 SOURCES = WeGlass.m
-FRAMEWORKS = -framework Foundation -framework UIKit
+FRAMEWORKS = -framework Foundation -framework UIKit -framework CoreGraphics
 CFLAGS = -arch arm64 -arch arm64e \
          -isysroot $(SDK) \
          -miphoneos-version-min=14.0 \

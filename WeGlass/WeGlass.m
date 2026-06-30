@@ -102,7 +102,8 @@ static void _hook_layoutSubviews(id self, SEL _cmd) {
 
     // Apply glass if this is a target view and frame is valid
     UIView *view = (UIView *)self;
-    if (!CGRectIsEmpty(view.bounds) && _isTargetView(view)) {
+    if (view.bounds.size.width > 0 && view.bounds.size.height > 0
+        && _isTargetView(view)) {
         _applyGlass(view);
     }
 
