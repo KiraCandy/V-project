@@ -1,12 +1,12 @@
 /**
- * WeGlass v8 — Add class name detection to v7's safe foundation
+ * WeGlass v9 — Safe class-name detection: only call bar APIs on confirmed bar classes
  *
- * Detection: isKindOfClass: + class name substring match
- * Action:    Set native bar translucency + clear backgrounds only
- *            ZERO subview insertion (v7 proved this is crash-safe)
+ * Key fix (v8→v9): If a view matches by NAME but NOT by isKindOfClass,
+ * only set UIView-generic properties (backgroundColor).
+ * Bar-specific API (setBackgroundImage:, translucent, etc.) is ONLY
+ * called when isKindOfClass: confirms the view IS that bar type.
  *
  * Hook:      willMoveToSuperview: (not hooked by ThemePro)
- * Compat:    ThemePro — zero overlap
  * Device:    iPhone 7 (A10), iOS 14.0+
  */
 #import <UIKit/UIKit.h>
@@ -34,67 +34,89 @@ static void _glassify(id self) {
     _depth++;
     if (_depth > 30) { _depth--; return; }
 
-    BOOL isNav  = [v isKindOfClass:[UINavigationBar class]] || _nameHas(v, @"NavigationBar") || _nameHas(v, @"MMNav");
-    BOOL isTab  = [v isKindOfClass:[UITabBar class]]       || _nameHas(v, @"TabBar")       || _nameHas(v, @"MMTab");
-    BOOL isSrch = [v isKindOfClass:[UISearchBar class]]    || _nameHas(v, @"SearchBar")    || _nameHas(v, @"MMSearch");
-    BOOL isTool = [v isKindOfClass:[UIToolbar class]]      || _nameHas(v, @"Toolbar");
-    BOOL isList = [v isKindOfClass:[UITableView class]]    || [v isKindOfClass:[UICollectionView class]]
-                                                           || _nameHas(v, @"TableView")
-                                                           || _nameHas(v, @"CollectionView")
-                                                           || _nameHas(v, @"ListView");
-    BOOL isCell = [v isKindOfClass:[UITableViewCell class]] || [v isKindOfClass:[UICollectionViewCell class]]
-                                                           || _nameHas(v, @"Cell");
+    // ── Check what this view is ─────────────────────────────
+    BOOL isUINav  = [v isKindOfClass:[UINavigationBar class]];
+    BOOL isUITab  = [v isKindOfClass:[UITabBar class]];
+    BOOL isUISrch = [v isKindOfClass:[UISearchBar class]];
+    BOOL isUITool = [v isKindOfClass:[UIToolbar class]];
+    BOOL isUIList = [v isKindOfClass:[UITableView class]]
+                 || [v isKindOfClass:[UICollectionView class]];
+    BOOL isUICell = [v isKindOfClass:[UITableViewCell class]]
+                 || [v isKindOfClass:[UICollectionViewCell class]];
 
-    if (isNav) {
+    BOOL nameNav  = _nameHas(v, @"NavigationBar") || _nameHas(v, @"MMNav");
+    BOOL nameTab  = _nameHas(v, @"TabBar")        || _nameHas(v, @"MMTab");
+    BOOL nameSrch = _nameHas(v, @"SearchBar")     || _nameHas(v, @"MMSearch");
+    BOOL nameTool = _nameHas(v, @"Toolbar");
+    BOOL nameList = _nameHas(v, @"TableView")     || _nameHas(v, @"CollectionView")
+                                                  || _nameHas(v, @"ListView");
+    BOOL nameCell = _nameHas(v, @"Cell");
+
+    // ── Navigation bar ─────────────────────────────────────
+    if (isUINav || nameNav) {
         _mark(v);
-        UINavigationBar *nb = (UINavigationBar *)v;
-        nb.translucent = YES;
-        nb.backgroundColor = [UIColor clearColor];
-        [nb setBackgroundImage:[[UIImage alloc] init] forBarMetrics:UIBarMetricsDefault];
-        [nb setShadowImage:[[UIImage alloc] init]];
+        v.backgroundColor = [UIColor clearColor];
+        if (isUINav) {
+            UINavigationBar *nb = (UINavigationBar *)v;
+            nb.translucent = YES;
+            [nb setBackgroundImage:[[UIImage alloc] init] forBarMetrics:UIBarMetricsDefault];
+            [nb setShadowImage:[[UIImage alloc] init]];
+        }
         _depth--;
         return;
     }
 
-    if (isTab) {
+    // ── Tab bar ────────────────────────────────────────────
+    if (isUITab || nameTab) {
         _mark(v);
-        UITabBar *tb = (UITabBar *)v;
-        tb.translucent = YES;
-        tb.backgroundColor = [UIColor clearColor];
-        [tb setBackgroundImage:[[UIImage alloc] init]];
-        [tb setShadowImage:[[UIImage alloc] init]];
+        v.backgroundColor = [UIColor clearColor];
+        if (isUITab) {
+            UITabBar *tb = (UITabBar *)v;
+            tb.translucent = YES;
+            [tb setBackgroundImage:[[UIImage alloc] init]];
+            [tb setShadowImage:[[UIImage alloc] init]];
+        }
         _depth--;
         return;
     }
 
-    if (isSrch) {
+    // ── Search bar ─────────────────────────────────────────
+    if (isUISrch || nameSrch) {
         _mark(v);
-        UISearchBar *sb = (UISearchBar *)v;
-        sb.translucent = YES;
-        sb.backgroundColor = [UIColor clearColor];
-        [sb setBackgroundImage:[[UIImage alloc] init]];
+        v.backgroundColor = [UIColor clearColor];
+        if (isUISrch) {
+            UISearchBar *sb = (UISearchBar *)v;
+            sb.translucent = YES;
+            [sb setBackgroundImage:[[UIImage alloc] init]];
+        }
         _depth--;
         return;
     }
 
-    if (isTool) {
+    // ── Toolbar ────────────────────────────────────────────
+    if (isUITool || nameTool) {
         _mark(v);
-        UIToolbar *tb = (UIToolbar *)v;
-        tb.translucent = YES;
-        tb.backgroundColor = [UIColor clearColor];
-        [tb setBackgroundImage:[[UIImage alloc] init] forToolbarPosition:UIBarPositionAny barMetrics:UIBarMetricsDefault];
+        v.backgroundColor = [UIColor clearColor];
+        if (isUITool) {
+            UIToolbar *tb = (UIToolbar *)v;
+            tb.translucent = YES;
+            [tb setBackgroundImage:[[UIImage alloc] init]
+                forToolbarPosition:UIBarPositionAny barMetrics:UIBarMetricsDefault];
+        }
         _depth--;
         return;
     }
 
-    if (isList) {
+    // ── Table / collection view ────────────────────────────
+    if (isUIList || nameList) {
         _mark(v);
         v.backgroundColor = [UIColor clearColor];
         _depth--;
         return;
     }
 
-    if (isCell) {
+    // ── Cell ───────────────────────────────────────────────
+    if (isUICell || nameCell) {
         _mark(v);
         if (v.backgroundColor && CGColorGetAlpha(v.backgroundColor.CGColor) > 0.5)
             v.backgroundColor = [v.backgroundColor colorWithAlphaComponent:CELL_ALPHA];
@@ -120,5 +142,5 @@ __attribute__((constructor))
 static void init(void) {
     Method m = class_getInstanceMethod([UIView class], @selector(willMoveToSuperview:));
     if (m) _orig = (void *)method_setImplementation(m, (IMP)_hook);
-    NSLog(@"[WeGlass] v8 — class name + isKindOfClass detection, native translucency");
+    NSLog(@"[WeGlass] v9 — name detection + safe call (bar APIs only on confirmed bar classes)");
 }
