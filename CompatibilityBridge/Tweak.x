@@ -55,7 +55,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)setFrame:(CGRect)frame {
     _reentryDepth++;
-    if (_in_setFrame || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_setFrame || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_setFrame = YES;
     %orig;
     _in_setFrame = NO;
@@ -64,7 +68,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)layoutSubviews {
     _reentryDepth++;
-    if (_in_layoutSubviews || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_layoutSubviews || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_layoutSubviews = YES;
     %orig;
     _in_layoutSubviews = NO;
@@ -73,7 +81,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)setBackgroundColor:(UIColor *)color {
     _reentryDepth++;
-    if (_in_setBackgroundColor || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_setBackgroundColor || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_setBackgroundColor = YES;
     %orig;
     _in_setBackgroundColor = NO;
@@ -82,7 +94,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)addSubview:(UIView *)view {
     _reentryDepth++;
-    if (_in_addSubview || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_addSubview || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_addSubview = YES;
     %orig;
     _in_addSubview = NO;
@@ -91,7 +107,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)didAddSubview:(UIView *)subview {
     _reentryDepth++;
-    if (_in_didAddSubview || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_didAddSubview || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_didAddSubview = YES;
     %orig;
     _in_didAddSubview = NO;
@@ -100,7 +120,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)didMoveToSuperview {
     _reentryDepth++;
-    if (_in_didMoveToSuperview || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_didMoveToSuperview || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_didMoveToSuperview = YES;
     %orig;
     _in_didMoveToSuperview = NO;
@@ -109,7 +133,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)didMoveToWindow {
     _reentryDepth++;
-    if (_in_didMoveToWindow || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_didMoveToWindow || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_didMoveToWindow = YES;
     %orig;
     _in_didMoveToWindow = NO;
@@ -118,7 +146,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)setHidden:(BOOL)hidden {
     _reentryDepth++;
-    if (_in_setHidden || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_setHidden || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_setHidden = YES;
     %orig;
     _in_setHidden = NO;
@@ -135,7 +167,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)viewWillAppear:(BOOL)animated {
     _reentryDepth++;
-    if (_in_viewWillAppear || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_viewWillAppear || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_viewWillAppear = YES;
     %orig;
     _in_viewWillAppear = NO;
@@ -144,7 +180,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)viewDidAppear:(BOOL)animated {
     _reentryDepth++;
-    if (_in_viewDidAppear || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_viewDidAppear || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_viewDidAppear = YES;
     %orig;
     _in_viewDidAppear = NO;
@@ -153,7 +193,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)viewDidLoad {
     _reentryDepth++;
-    if (_in_viewDidLoad || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_viewDidLoad || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_viewDidLoad = YES;
     %orig;
     _in_viewDidLoad = NO;
@@ -162,7 +206,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)viewDidLayoutSubviews {
     _reentryDepth++;
-    if (_in_viewDidLayoutSubviews || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_viewDidLayoutSubviews || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_viewDidLayoutSubviews = YES;
     %orig;
     _in_viewDidLayoutSubviews = NO;
@@ -171,7 +219,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)viewWillLayoutSubviews {
     _reentryDepth++;
-    if (_in_viewWillLayoutSubviews || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_viewWillLayoutSubviews || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_viewWillLayoutSubviews = YES;
     %orig;
     _in_viewWillLayoutSubviews = NO;
@@ -188,7 +240,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)setContentOffset:(CGPoint)contentOffset {
     _reentryDepth++;
-    if (_in_setContentOffset || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_setContentOffset || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_setContentOffset = YES;
     %orig;
     _in_setContentOffset = NO;
@@ -197,7 +253,11 @@ static _Thread_local BOOL _in_setContentInset = NO;
 
 - (void)setContentInset:(UIEdgeInsets)contentInset {
     _reentryDepth++;
-    if (_in_setContentInset || _reentryDepth > DEPTH_LIMIT) { %orig; _reentryDepth--; return; }
+    if (_in_setContentInset || _reentryDepth > DEPTH_LIMIT) {
+        %orig;
+        _reentryDepth--;
+        return;
+    }
     _in_setContentInset = YES;
     %orig;
     _in_setContentInset = NO;
