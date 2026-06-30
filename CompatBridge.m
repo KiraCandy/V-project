@@ -25,11 +25,13 @@ void MSHookMessageEx(Class cls, SEL sel, IMP imp, IMP *result) {
 // ─── Part 2: Re-entry guard ────────────────────────────────────
 
 /**
- * TLS counter. When > 1 on the same thread, we are inside a guarded call
- * that was re-entered (A's hook → B's hook → A's hook). In that case,
- * skip all plugin hooks and call the real original directly.
+ * TLS counter. Threshold > 3 means we allow up to 3 nested calls before
+ * treating it as infinite recursion. UIKit normal operation can reach
+ * depth 2-3 during view setup; actual recursion from plugin hooks
+ * escalates far beyond that immediately.
  */
 static _Thread_local int _depth = 0;
+#define REENTRY_THRESHOLD 3
 
 // ── Original IMP storage ───────────────────────────────────────
 
@@ -51,19 +53,14 @@ static void (*_orig_vc_viewWillLayoutSubviews)(id, SEL);
 static void (*_orig_scroll_setContentOffset)(id, SEL, CGPoint);
 static void (*_orig_scroll_setContentInset)(id, SEL, UIEdgeInsets);
 
-static void (*_orig_navbar_setFrame)(id, SEL, CGRect);
-static void (*_orig_navbar_layoutSubviews)(id, SEL);
 static void (*_orig_navbar_setBackgroundImage)(id, SEL, id, NSInteger);
-
-static void (*_orig_tabbar_setFrame)(id, SEL, CGRect);
-static void (*_orig_tabbar_layoutSubviews)(id, SEL);
 static void (*_orig_tabbar_setBackgroundImage)(id, SEL, id);
 
 // ── Guard macros ───────────────────────────────────────────────
 
 #define GUARD_BEGIN(orig_call)    \
     _depth++;                     \
-    if (_depth > 1) {             \
+    if (_depth > REENTRY_THRESHOLD) { \
         orig_call;                \
         _depth--;                 \
         return;                   \
@@ -167,19 +164,8 @@ static void _guard_scroll_setContentInset(id self, SEL _cmd, UIEdgeInsets insets
     GUARD_END;
 }
 
-// ── UINavigationBar guards ─────────────────────────────────────
-
-static void _guard_navbar_setFrame(id self, SEL _cmd, CGRect frame) {
-    GUARD_BEGIN(_orig_navbar_setFrame(self, _cmd, frame));
-    _orig_navbar_setFrame(self, _cmd, frame);
-    GUARD_END;
-}
-
-static void _guard_navbar_layoutSubviews(id self, SEL _cmd) {
-    GUARD_BEGIN(_orig_navbar_layoutSubviews(self, _cmd));
-    _orig_navbar_layoutSubviews(self, _cmd);
-    GUARD_END;
-}
+// ── UINavigationBar guard (setBackgroundImage:forBarMetrics: only) ──
+// UIView.setFrame:/layoutSubviews already covered by UIView guards above
 
 static void _guard_navbar_setBackgroundImage(id self, SEL _cmd, id image, NSInteger metrics) {
     GUARD_BEGIN(_orig_navbar_setBackgroundImage(self, _cmd, image, metrics));
@@ -187,19 +173,8 @@ static void _guard_navbar_setBackgroundImage(id self, SEL _cmd, id image, NSInte
     GUARD_END;
 }
 
-// ── UITabBar guards ────────────────────────────────────────────
-
-static void _guard_tabbar_setFrame(id self, SEL _cmd, CGRect frame) {
-    GUARD_BEGIN(_orig_tabbar_setFrame(self, _cmd, frame));
-    _orig_tabbar_setFrame(self, _cmd, frame);
-    GUARD_END;
-}
-
-static void _guard_tabbar_layoutSubviews(id self, SEL _cmd) {
-    GUARD_BEGIN(_orig_tabbar_layoutSubviews(self, _cmd));
-    _orig_tabbar_layoutSubviews(self, _cmd);
-    GUARD_END;
-}
+// ── UITabBar guard (setBackgroundImage: only) ──────────────────
+// UIView.setFrame:/layoutSubviews already covered by UIView guards above
 
 static void _guard_tabbar_setBackgroundImage(id self, SEL _cmd, id image) {
     GUARD_BEGIN(_orig_tabbar_setBackgroundImage(self, _cmd, image));
@@ -237,11 +212,9 @@ static void CompatBridge_init(void) {
     SWIZZLE(UIScrollView, setContentOffset:, _orig_scroll_setContentOffset, _guard_scroll_setContentOffset);
     SWIZZLE(UIScrollView, setContentInset:, _orig_scroll_setContentInset, _guard_scroll_setContentInset);
 
-    SWIZZLE(UINavigationBar, setFrame:, _orig_navbar_setFrame, _guard_navbar_setFrame);
-    SWIZZLE(UINavigationBar, layoutSubviews, _orig_navbar_layoutSubviews, _guard_navbar_layoutSubviews);
+    // Only swizzle UINavigationBar-specific methods (UIView.setFrame/layoutSubviews already covered)
     SWIZZLE(UINavigationBar, setBackgroundImage:forBarMetrics:, _orig_navbar_setBackgroundImage, _guard_navbar_setBackgroundImage);
 
-    SWIZZLE(UITabBar, setFrame:, _orig_tabbar_setFrame, _guard_tabbar_setFrame);
-    SWIZZLE(UITabBar, layoutSubviews, _orig_tabbar_layoutSubviews, _guard_tabbar_layoutSubviews);
+    // Only swizzle UITabBar-specific methods (UIView.setFrame/layoutSubviews already covered)
     SWIZZLE(UITabBar, setBackgroundImage:, _orig_tabbar_setBackgroundImage, _guard_tabbar_setBackgroundImage);
 }
